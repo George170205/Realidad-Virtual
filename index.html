@@ -1,0 +1,285 @@
+<!--   Index.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Holográfico VR</title>
+    <style>
+        :root {
+            --primary: #00aaff;
+            --primary-dark: #0088cc;
+            --accent: #00ff88;
+            --bg-dark: #111;
+            --bg-card: #222;
+            --text: #fff;
+            --text-secondary: #aaa;
+        }
+        
+        body {
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text);
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #003, #115);
+            padding: 40px 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        
+        h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            background: linear-gradient(to right, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 2px 10px rgba(0,170,255,0.2);
+        }
+        
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin: 10px 0 0;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        
+        .card {
+            background: var(--bg-card);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            transition: transform 0.3s, box-shadow 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+        }
+        
+        .card-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            background: linear-gradient(45deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .card h2 {
+            margin: 10px 0;
+            color: var(--primary);
+        }
+        
+        .card p {
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+        
+        .btn-container {
+            margin-top: auto;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: var(--primary);
+            color: var(--text);
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            border: 2px solid var(--primary);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(0,170,255,0.1);
+        }
+        
+        footer {
+            margin-top: 50px;
+            padding: 20px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        
+        .status-badge {
+            background: rgba(0,170,255,0.2);
+            color: var(--primary);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-bottom: 15px;
+        }
+        
+        .status-badge.active {
+            background: rgba(0,255,136,0.2);
+            color: var(--accent);
+        }
+        
+        .status-badge.error {
+            background: rgba(255,50,50,0.2);
+            color: #ff5050;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🎮 Sistema Holográfico VR</h1>
+        <p class="subtitle">Control de videojuegos mediante reconocimiento de poses</p>
+    </header>
+    
+    <div class="container">
+        <div class="card">
+            <div class="card-icon">👾</div>
+            <div class="status-badge active" id="pose-status">Sistema Activo</div>
+            <h2>Control de Poses</h2>
+            <p>Conéctate al sistema de reconocimiento de poses para controlar juegos VR con los movimientos de tu cuerpo</p>
+            <div class="btn-container">
+                <a href="/pose" class="btn">Iniciar Visor</a>
+                <a href="/calibracion" class="btn btn-secondary">Calibración</a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-icon">📱</div>
+            <div class="status-badge" id="qr-status">Listo para Conectar</div>
+            <h2>Acceso Remoto</h2>
+            <p>Escanea el código QR para conectar tu teléfono como controlador o visor secundario</p>
+            <div class="btn-container">
+                <a href="/qr" class="btn">QR Local</a>
+                <a href="/ngrok_qr" class="btn btn-secondary">QR Internet</a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-icon">📹</div>
+            <div class="status-badge" id="camera-status">0 Cámaras</div>
+            <h2>Cámaras</h2>
+            <p>Administra las cámaras conectadas al sistema para una mejor detección desde múltiples ángulos</p>
+            <div class="btn-container">
+                <a href="/ver_camaras" class="btn">Ver Cámaras</a>
+                <a href="#" class="btn btn-secondary" id="scan-cameras">Buscar Cámaras</a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-icon">🎲</div>
+            <div class="status-badge" id="game-status">2 Juegos</div>
+            <h2>Juegos Compatibles</h2>
+            <p>Gestiona los perfiles de juego y personaliza los controles para diferentes experiencias</p>
+            <div class="btn-container">
+                <a href="/juegos" class="btn">Ver Juegos</a>
+                <a href="/editor_juegos" class="btn btn-secondary">Editor</a>
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        Sistema Holográfico VR v2.0 &copy; 2025
+    </footer>
+    
+    <script src="/static/socket.io.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const socket = io();
+            
+            // Verificar estado de cámaras
+            fetch('/api/camaras')
+                .then(response => response.json())
+                .then(data => {
+                    const cameraBadge = document.getElementById('camera-status');
+                    cameraBadge.textContent = `${data.camaras.length} Cámaras`;
+                    
+                    if (data.camaras.length > 0) {
+                        cameraBadge.classList.add('active');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error verificando cámaras:', error);
+                    document.getElementById('camera-status').classList.add('error');
+                    document.getElementById('camera-status').textContent = 'Error';
+                });
+                
+            // Botón para buscar cámaras
+            document.getElementById('scan-cameras').addEventListener('click', function(e) {
+                e.preventDefault();
+                const cameraBadge = document.getElementById('camera-status');
+                cameraBadge.textContent = 'Buscando...';
+                
+                // Simulación de búsqueda (en la implementación real esto buscaría en la red)
+                setTimeout(function() {
+                    cameraBadge.textContent = 'Cámaras Encontradas';
+                    cameraBadge.classList.add('active');
+                    alert('Se han encontrado dispositivos compatibles en la red. Ve a "Ver Cámaras" para conectarlos.');
+                }, 2000);
+            });
+            
+            // Recibir estado del servidor
+            socket.on('system_status', function(data) {
+                // Actualizar badges según estado del sistema
+                if (data.poseActive) {
+                    document.getElementById('pose-status').classList.add('active');
+                    document.getElementById('pose-status').textContent = 'Sistema Activo';
+                } else {
+                    document.getElementById('pose-status').classList.remove('active');
+                    document.getElementById('pose-status').textContent = 'Sistema Inactivo';
+                }
+                
+                // Estado de conexiones remotas
+                document.getElementById('qr-status').textContent = 
+                    data.connectedDevices > 0 ? `${data.connectedDevices} Conectados` : 'Listo para Conectar';
+                
+                if (data.connectedDevices > 0) {
+                    document.getElementById('qr-status').classList.add('active');
+                } else {
+                    document.getElementById('qr-status').classList.remove('active');
+                }
+                
+                // Juegos disponibles
+                document.getElementById('game-status').textContent = `${data.availableGames} Juegos`;
+            });
+        });
+    </script>
+</body>
+</html>
