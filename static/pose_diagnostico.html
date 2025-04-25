@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagnóstico de Cámara VR</title>
+  <style>
+    body { 
+      margin: 0; 
+      background: #111; 
+      color: white; 
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 { 
+      color: #00AAFF; 
+      text-align: center;
+    }
+    video { 
+      width: 100%; 
+      border: 2px solid #00AAFF; 
+      border-radius: 8px;
+      margin: 20px 0;
+      background: black;
+    }
+    .log {
+      background: #333;
+      border: 1px solid #555;
+      border-radius: 8px;
+      padding: 10px;
+      margin: 10px 0;
+      height: 100px;
+      overflow-y: auto;
+      font-family: monospace;
+    }
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin: 20px 0;
+      flex-wrap: wrap;
+    }
+    button {
+      background: #00AAFF;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background: #0088CC;
+    }
+    .status {
+      padding: 10px;
+      border-radius: 5px;
+      margin: 10px 0;
+      font-weight: bold;
+    }
+    .status.error {
+      background: rgba(255, 0, 0, 0.2);
+      border: 1px solid red;
+    }
+    .status.success {
+      background: rgba(0, 255, 0, 0.2);
+      border: 1px solid green;
+    }
+    .status.info {
+      background: rgba(0, 0, 255, 0.2);
+      border: 1px solid blue;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Diagnóstico de Cámara VR</h1>
+    
+    <div id="status" class="status info">Esperando acciones...</div>
+    
+    <div class="buttons">
+      <button id="checkCamera">1. Verificar Soporte de Cámara</button>
+      <button id="requestPermission">2. Solicitar Permiso</button>
+      <button id="startCamera">3. Iniciar Cámara Simple</button>
+      <button id="testSocket">4. Probar Socket.IO</button>
+    </div>
+    
+    <video id="video" autoplay playsinline muted></video>
+    
+    <h3>Registro de Eventos:</h3>
+    <div id="log" class="log"></div>
+    
+    <h3>Información del Navegador:</h3>
+    <div id="browserInfo" class="status info">Cargando...</div>
+    
+    <div class="buttons">
+      <button id="goToOriginal">Ir al Visor Original</button>
+      <button id="goToHome">Volver al Inicio</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"
+          integrity="sha384-yfknrCrpqfWcSFaLrR2d5N0AVZsLbrdBfwLbWQOJX/VANxH9jQ5xptzMnupYegOa"
+          crossorigin="anonymous"></script>
+  <script>
+    // Variables
+    const videoElement = document.getElementById('video');
+    const statusElement = document.getElementById('status');
+    const logElement = document.getElementById('log');
+    const browserInfoElement = document.getElementById('browserInfo');
+    let socket = null;
+    let stream = null;
+    
+    // Función para mostrar mensajes en el log
+    function log(message, type = 'info') {
+      const logItem = document.createElement('div');
+      logItem.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logItem.style.color = type === 'error' ? '#ff5555' : 
+                           type === 'success' ? '#55ff55' : '#ffffff';
+      logElement.appendChild(logItem);
+      logElement.scrollTop = logElement.scrollHeight;
+      
+      console.log(`[${type}] ${message}`);
+    }
+    
+    // Función para actualizar el estado
+    function updateStatus(message, type = 'info') {
+      statusElement.textContent = message;
+      statusElement.className = 'status ' + type;
+    }
+    
+    // 1. Verificar soporte de cámara
+    document.getElementById('checkCamera').addEventListener('click', () => {
+      log('Verificando soporte de cámara...');
+      
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        updateStatus('❌ Tu navegador no soporta acceso a la cámara', 'error');
+        log('Navegador sin soporte para MediaDevices API', 'error');
+      } else {
+        updateStatus('✅ Tu navegador soporta acceso a la cámara', 'success');
+        log('MediaDevices API disponible', 'success');
+        
+        // Listar dispositivos
+        navigator.mediaDevices.enumerateDevices()
+          .then(devices => {
+            const videoDevices = devices.filter(device => device.kind === 'videoinput');
+            if (videoDevices.length > 0) {
+              log(`Encontradas ${videoDevices.length} cámaras disponibles:`, 'success');
+              videoDevices.forEach((device, index) => {
+                log(`  ${index + 1}. ${device.label || 'Cámara sin nombre'}`);
+              });
+            } else {
+              log('No se encontraron cámaras disponibles', 'error');
+            }
+          })
+          .catch(err => {
+            log(`Error al enumerar dispositivos: ${err.message}`, 'error');
+          });
+      }
+    });
+    
+    // 2. Solicitar permiso para la cámara
+    document.getElementById('requestPermission').addEventListener('click', async () => {
+      log('Solicitando permiso para la cámara...');
+      updateStatus('Solicitando permiso para la cámara...', 'info');
+      
+      try {
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+          log('Stream anterior detenido');
+        }
+        
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: 'user',
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          } 
+        });
+        
+        updateStatus('✅ Permiso de cámara concedido', 'success');
+        log('Permiso de cámara concedido', 'success');
+        
+        const tracks = stream.getVideoTracks();
+        if (tracks.length > 0) {
+          log(`Usando cámara: ${tracks[0].label}`);
+        }
+      } catch (error) {
+        updateStatus(`❌ Error al solicitar permiso: ${error.message}`, 'error');
+        log(`Error al solicitar permiso: ${error.message}`, 'error');
+      }
+    });
+    
+    // 3. Iniciar cámara simple
+    document.getElementById('startCamera').addEventListener('click', () => {
+      log('Intentando iniciar cámara simple...');
+      
+      if (!stream) {
+        updateStatus('⚠️ Primero debes solicitar permiso (Botón 2)', 'error');
+        log('No hay stream disponible. Solicite permiso primero.', 'error');
+        return;
+      }
+      
+      try {
+        videoElement.srcObject = stream;
+        videoElement.onloadedmetadata = () => {
+          videoElement.play();
+          updateStatus('✅ Cámara iniciada correctamente', 'success');
+          log('Cámara iniciada correctamente', 'success');
+        };
+        
+        videoElement.onerror = (err) => {
+          log(`Error en elemento video: ${err}`, 'error');
+        };
+      } catch (error) {
+        updateStatus(`❌ Error al iniciar cámara: ${error.message}`, 'error');
+        log(`Error al iniciar cámara: ${error.message}`, 'error');
+      }
+    });
+    
+    // 4. Probar Socket.IO
+    document.getElementById('testSocket').addEventListener('click', () => {
+      log('Probando conexión Socket.IO...');
+      updateStatus('Conectando a Socket.IO...', 'info');
+      
+      try {
+        if (socket) {
+          log('Cerrando conexión Socket.IO anterior');
+          socket.disconnect();
+        }
+        
+        socket = io();
+        
+        socket.on('connect', () => {
+          updateStatus('✅ Socket.IO conectado', 'success');
+          log('Socket.IO conectado correctamente', 'success');
+          log(`ID de Socket: ${socket.id}`);
+          
+          // Enviar un ping de prueba
+          socket.emit('test', { message: 'Prueba desde diagnóstico' });
+        });
+        
+        socket.on('disconnect', () => {
+          log('Socket.IO desconectado', 'error');
+        });
+        
+        socket.on('connect_error', (err) => {
+          updateStatus('❌ Error de conexión Socket.IO', 'error');
+          log(`Error de conexión Socket.IO: ${err.message}`, 'error');
+        });
+        
+        socket.on('evento_gesto', (data) => {
+          log(`Recibido evento de gesto: ${JSON.stringify(data.gestos)}`);
+        });
+      } catch (error) {
+        updateStatus(`❌ Error al inicializar Socket.IO: ${error.message}`, 'error');
+        log(`Error al inicializar Socket.IO: ${error.message}`, 'error');
+      }
+    });
+    
+    // Navegación
+    document.getElementById('goToOriginal').addEventListener('click', () => {
+      window.location.href = '/pose';
+    });
+    
+    document.getElementById('goToHome').addEventListener('click', () => {
+      window.location.href = '/';
+    });
+    
+    // Información del navegador
+    function mostrarInfoNavegador() {
+      const info = {
+        'Navegador': navigator.userAgent,
+        'Plataforma': navigator.platform,
+        'Idioma': navigator.language,
+        'Cookies Habilitadas': navigator.cookieEnabled,
+        'Conexión en línea': navigator.onLine,
+        'Tipo de dispositivo': /Mobi|Android/i.test(navigator.userAgent) ? 'Móvil' : 'Escritorio'
+      };
+      
+      let infoHTML = '';
+      for (const [key, value] of Object.entries(info)) {
+        infoHTML += `<strong>${key}:</strong> ${value}<br>`;
+      }
+      
+      browserInfoElement.innerHTML = infoHTML;
+    }
+    
+    mostrarInfoNavegador();
+    
+    // Mensaje inicial
+    log('Página de diagnóstico cargada. Sigue los pasos del 1 al 4 en orden.');
+    updateStatus('Haz clic en "1. Verificar Soporte de Cámara" para comenzar', 'info');
+  </script>
+</body>
+</html>

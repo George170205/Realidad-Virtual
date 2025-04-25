@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediaPipe Pose Controller</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  <!-- Cambiamos a una versión de Socket.IO sin verificación de integridad y de un CDN alternativo -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    body { 
+      margin: 0; 
+      background: #000; 
+      overflow: hidden; 
+      font-family: Arial, sans-serif;
+    }
+    video, canvas { 
+      position: absolute; 
+      top: 0; 
+      left: 0; 
+      width: 100vw; 
+      height: 100vh; 
+    }
+    #mensaje { 
+      position: absolute; 
+      top: 20px; 
+      left: 50%; 
+      transform: translateX(-50%); 
+      color: white; 
+      background: rgba(0,0,0,0.8); 
+      padding: 15px 20px; 
+      border-radius: 10px; 
+      font-size: 16px; 
+      text-align: center;
+      z-index: 100;
+    }
+    #controles { 
+      position: absolute; 
+      bottom: 20px; 
+      left: 50%; 
+      transform: translateX(-50%); 
+      color: white; 
+      background: rgba(0,0,0,0.8); 
+      padding: 10px 20px; 
+      border-radius: 10px; 
+      font-size: 16px;
+      z-index: 100;
+    }
+    button {
+      background: #00AAFF;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #0088CC;
+    }
+    #logs {
+      position: absolute;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #aaa;
+      background: rgba(0,0,0,0.5);
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      max-width: 80%;
+      text-align: center;
+      z-index: 90;
+    }
+  </style>
+</head>
+<body>
+  <video id="input_video" autoplay playsinline muted></video>
+  <canvas id="output_canvas"></canvas>
+  
+  <div id="mensaje">
+    ⚠️ Haz clic en el botón para activar la cámara<br>
+    <button id="activar-camara">Activar Cámara</button>
+  </div>
+  
+  <div id="controles">
+    <div id="estado">Esperando activación...</div>
+  </div>
+  
+  <div id="logs"></div>
+
+  <script>
+    // Elementos del DOM
+    const videoElement = document.getElementById('input_video');
+    const canvasElement = document.getElementById('output_canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const mensaje = document.getElementById('mensaje');
+    const btnActivar = document.getElementById('activar-camara');
+    const estado = document.getElementById('estado');
+    const logs = document.getElementById('logs');
+    
+    // Variables de control
+    let socketIniciado = false;
+    let camaraIniciada = false;
+    let mediaPipeIniciado = false;
+    let socket = null;
+    
+    // Función para mostrar logs
+    function addLog(text) {
+      logs.textContent = text;
+      console.log(text);
+    }
+    
+    // Ajustar tamaño del canvas
+    function resizeCanvas() {
+      canvasElement.width = window.innerWidth;
+      canvasElement.height = window.innerHeight;
+    }
+    
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    
+    // Conectar Socket.IO
+    function iniciarSocket() {
+      try {
+        addLog("Iniciando Socket.IO...");
+        socket = io();
+        
+        socket.on('connect', () => {
+          estado.textContent = "✅ Conectado al servidor";
+          socketIniciado = true;
+          addLog("Socket.IO conectado correctamente");
+        });
+        
+        socket.on('disconnect', () => {
+          estado.textContent = "❌ Desconectado del servidor";
+          socketIniciado = false;
+          addLog("Socket.IO desconectado");
+        });
+        
+        socket.on('connect_error', (err) => {
+          addLog(`Error de conexión Socket.IO: ${err.message}`);
+          socketIniciado = false;
+        });
+        
+        // Escuchar eventos de gesto para debug
+        socket.on('evento_gesto', (data) => {
+          if (data.gestos && data.gestos.length > 0) {
+            estado.textContent = `Gestos: ${data.gestos.join(', ')}`;
+          }
+        });
+      } catch (error) {
+        addLog(`Error al inicializar Socket.IO: ${error.message}`);
+      }
+    }
+    
+    // Función para activar cámara
+    async function activarCamara() {
+      btnActivar.disabled = true;
+      btnActivar.textContent = "Activando...";
+      
+      try {
+        addLog("Solicitando permiso de cámara...");
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'user',
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          }
+        });
+        
+        // Asignar stream al video
+        videoElement.srcObject = stream;
+        videoElement.onloadedmetadata = () => {
+          videoElement.play();
+          camaraIniciada = true;
+          mensaje.style.display = 'none';
+          addLog("Cámara activada. Iniciando MediaPipe...");
+          iniciarMediaPipe();
+        };
+        
+        // Iniciar Socket.IO
+        if (!socketIniciado) {
+          iniciarSocket();
+        }
+        
+      } catch (error) {
+        btnActivar.disabled = false;
+        btnActivar.textContent = "Activar Cámara";
+        addLog(`Error al acceder a la cámara: ${error.message}`);
+        mensaje.innerHTML = `⚠️ Error al acceder a la cámara: ${error.message}<br>
+                          <button id="activar-camara">Reintentar</button>`;
+      }
+    }
+    
+    // Inicializar MediaPipe Pose
+    function iniciarMediaPipe() {
+      try {
+        addLog("Cargando librería MediaPipe Pose...");
+        
+        const pose = new window.Pose({
+          locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+          }
+        });
+        
+        pose.setOptions({
+          modelComplexity: 1,
+          smoothLandmarks: true,
+          enableSegmentation: false,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5
+        });
+        
+        pose.onResults((results) => {
+          if (!mediaPipeIniciado) {
+            mediaPipeIniciado = true;
+            addLog("MediaPipe iniciado correctamente");
+          }
+          
+          canvasCtx.save();
+          canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+          canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+          
+          if (results.poseLandmarks) {
+            drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#00FF00', lineWidth: 3 });
+            drawLandmarks(canvasCtx, results.poseLandmarks, { color: '#FF0000', lineWidth: 2 });
+            
+            // Emitir datos de pose vía Socket.IO
+            if (socket && socket.connected) {
+              socket.emit('pose', results.poseLandmarks);
+            }
+          }
+          canvasCtx.restore();
+        });
+        
+        // Iniciar la cámara con MediaPipe
+        const camera = new Camera(videoElement, {
+          onFrame: async () => {
+            await pose.send({ image: videoElement });
+          },
+          width: 640,
+          height: 480
+        });
+        
+        camera.start()
+          .then(() => {
+            estado.textContent = "✅ Sistema funcionando";
+            // Ocultar mensaje de logs después de 5 segundos
+            setTimeout(() => {
+              logs.style.display = 'none';
+            }, 5000);
+          })
+          .catch(error => {
+            addLog(`Error al iniciar la cámara MediaPipe: ${error.message}`);
+            mensaje.style.display = 'block';
+            mensaje.innerHTML = `⚠️ Error en MediaPipe: ${error.message}<br>
+                            <button id="activar-camara">Reintentar</button>`;
+            document.getElementById('activar-camara').disabled = false;
+          });
+          
+      } catch (error) {
+        addLog(`Error al inicializar MediaPipe: ${error.message}`);
+        mensaje.style.display = 'block';
+        mensaje.innerHTML = `⚠️ Error al cargar MediaPipe: ${error.message}<br>
+                          <button id="activar-camara">Reintentar</button>`;
+        document.getElementById('activar-camara').disabled = false;
+      }
+    }
+    
+    // Verificar soporte de navegador
+    window.onload = function() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        mensaje.innerHTML = "❌ Tu navegador no permite acceso a la cámara.<br>Prueba con Google Chrome o revisa los permisos.";
+        addLog("Navegador sin soporte para MediaDevices API");
+      } else {
+        // También iniciar Socket.IO inmediatamente
+        iniciarSocket();
+      }
+    };
+    
+    // Event listener para el botón de activación
+    btnActivar.addEventListener('click', activarCamara);
+    
+    // También permitir que se active con taps en la pantalla
+    document.addEventListener('click', (e) => {
+      if (e.target !== btnActivar && !camaraIniciada) {
+        activarCamara();
+      }
+    });
+  </script>
+</body>
+</html>
